@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   Plus,
@@ -12,6 +13,7 @@ import {
   XCircle,
   Building2,
   IndianRupee,
+  Utensils,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,9 +137,14 @@ const getInitials = (name: string) => {
 };
 
 export default function Employees() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const handleEmployeeClick = (employeeId: string) => {
+    navigate(`/employees/${employeeId}`);
+  };
 
   const filteredEmployees = mockEmployees.filter((employee) => {
     const matchesSearch =
@@ -274,7 +281,11 @@ export default function Employees() {
           </TableHeader>
           <TableBody>
             {filteredEmployees.map((employee) => (
-              <TableRow key={employee.id} className="group">
+              <TableRow 
+                key={employee.id} 
+                className="group cursor-pointer hover:bg-muted/50"
+                onClick={() => handleEmployeeClick(employee.id)}
+              >
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -330,7 +341,7 @@ export default function Employees() {
                     )}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -341,10 +352,14 @@ export default function Employees() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                    <DropdownMenuContent align="end" className="bg-popover">
+                      <DropdownMenuItem onClick={() => handleEmployeeClick(employee.id)}>
+                        <Utensils className="h-4 w-4 mr-2" />
+                        Add Food
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEmployeeClick(employee.id)}>
                         <Eye className="h-4 w-4 mr-2" />
-                        View Details
+                        View History
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <Edit className="h-4 w-4 mr-2" />

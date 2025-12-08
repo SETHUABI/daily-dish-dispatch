@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "./pages/Index";
 import Companies from "./pages/Companies";
 import Employees from "./pages/Employees";
+import EmployeeDetail from "./pages/EmployeeDetail";
 import FoodItems from "./pages/FoodItems";
 import DailyEntry from "./pages/DailyEntry";
 import Reports from "./pages/Reports";
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/employees" element={<Employees />} />
+            <Route path="/employees/:id" element={<EmployeeDetail />} />
             <Route path="/food-items" element={<FoodItems />} />
             <Route path="/daily-entry" element={<DailyEntry />} />
             <Route path="/reports" element={<Reports />} />
