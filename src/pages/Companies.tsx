@@ -1,17 +1,18 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Building2, 
   Plus, 
   Search, 
   MoreHorizontal, 
   Phone, 
-  Mail, 
-  MapPin,
   Edit,
   Trash2,
   Eye,
   CheckCircle,
-  XCircle
+  XCircle,
+  Users,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,60 +41,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-
-// Mock data
-const mockCompanies = [
-  {
-    id: "1",
-    name: "Tech Solutions Pvt Ltd",
-    code: "TECH01",
-    contact_person: "Rajesh Kumar",
-    phone: "+91 98765 43210",
-    email: "rajesh@techsolutions.com",
-    address: "Koramangala, Bangalore",
-    is_active: true,
-    outstanding: 45680,
-    employee_count: 45,
-  },
-  {
-    id: "2",
-    name: "Global Industries",
-    code: "GLOB01",
-    contact_person: "Priya Sharma",
-    phone: "+91 98765 43211",
-    email: "priya@globalind.com",
-    address: "Electronic City, Bangalore",
-    is_active: true,
-    outstanding: 32450,
-    employee_count: 32,
-  },
-  {
-    id: "3",
-    name: "Sunrise Corporation",
-    code: "SUNR01",
-    contact_person: "Amit Patel",
-    phone: "+91 98765 43212",
-    email: "amit@sunrise.com",
-    address: "Whitefield, Bangalore",
-    is_active: true,
-    outstanding: 28900,
-    employee_count: 28,
-  },
-  {
-    id: "4",
-    name: "Metro Services",
-    code: "METR01",
-    contact_person: "Sneha Reddy",
-    phone: "+91 98765 43213",
-    email: "sneha@metro.com",
-    address: "HSR Layout, Bangalore",
-    is_active: false,
-    outstanding: 0,
-    employee_count: 15,
-  },
-];
+import { useCompaniesWithStats, useCreateCompany, useDeleteCompany } from "@/hooks/useCompanies";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -104,15 +64,59 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function Companies() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    code: "",
+    contact_person: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
 
-  const filteredCompanies = mockCompanies.filter(
+  const { data: companies, isLoading } = useCompaniesWithStats();
+  const createCompany = useCreateCompany();
+  const deleteCompany = useDeleteCompany();
+
+  const filteredCompanies = companies?.filter(
     (company) =>
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       company.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.contact_person.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      company.contact_person?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) return;
+    
+    await createCompany.mutateAsync({
+      name: formData.name,
+      code: formData.code || null,
+      contact_person: formData.contact_person || null,
+      phone: formData.phone || null,
+      email: formData.email || null,
+      address: formData.address || null,
+      is_active: true,
+    });
+
+    setFormData({ name: "", code: "", contact_person: "", phone: "", email: "", address: "" });
+    setIsDialogOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (deleteCompanyId) {
+      await deleteCompany.mutateAsync(deleteCompanyId);
+      setDeleteCompanyId(null);
+    }
+  };
+
+  const handleViewDetails = (companyId: string) => {
+    navigate(`/companies/${companyId}`);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -143,46 +147,89 @@ export default function Companies() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">
-                  Name
+                  Name *
                 </Label>
-                <Input id="name" placeholder="Company name" className="col-span-3" />
+                <Input 
+                  id="name" 
+                  placeholder="Company name" 
+                  className="col-span-3"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="code" className="text-right">
                   Code
                 </Label>
-                <Input id="code" placeholder="Short code" className="col-span-3" />
+                <Input 
+                  id="code" 
+                  placeholder="Short code" 
+                  className="col-span-3"
+                  value={formData.code}
+                  onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="contact" className="text-right">
                   Contact
                 </Label>
-                <Input id="contact" placeholder="Contact person" className="col-span-3" />
+                <Input 
+                  id="contact" 
+                  placeholder="Contact person" 
+                  className="col-span-3"
+                  value={formData.contact_person}
+                  onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="phone" className="text-right">
                   Phone
                 </Label>
-                <Input id="phone" placeholder="+91 XXXXX XXXXX" className="col-span-3" />
+                <Input 
+                  id="phone" 
+                  placeholder="+91 XXXXX XXXXX" 
+                  className="col-span-3"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">
                   Email
                 </Label>
-                <Input id="email" type="email" placeholder="email@company.com" className="col-span-3" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="email@company.com" 
+                  className="col-span-3"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="address" className="text-right">
                   Address
                 </Label>
-                <Input id="address" placeholder="Full address" className="col-span-3" />
+                <Input 
+                  id="address" 
+                  placeholder="Full address" 
+                  className="col-span-3"
+                  value={formData.address}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => setIsDialogOpen(false)}>Save Company</Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={createCompany.isPending || !formData.name.trim()}
+              >
+                {createCompany.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Company
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -203,110 +250,155 @@ export default function Companies() {
 
       {/* Table */}
       <div className="rounded-xl border bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[250px]">Company</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead className="text-center">Employees</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
-              <TableHead className="text-center">Status</TableHead>
-              <TableHead className="w-[70px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredCompanies.map((company) => (
-              <TableRow key={company.id} className="group">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Building2 className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{company.name}</p>
-                      <p className="text-xs text-muted-foreground">{company.code}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">{company.contact_person}</p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {company.phone}
-                      </span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className="font-medium">{company.employee_count}</span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span
-                    className={cn(
-                      "font-semibold",
-                      company.outstanding > 0 ? "text-destructive" : "text-success"
-                    )}
-                  >
-                    {formatCurrency(company.outstanding)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={company.is_active ? "default" : "secondary"}
-                    className={cn(
-                      company.is_active
-                        ? "bg-success/10 text-success hover:bg-success/20"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {company.is_active ? (
-                      <>
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Active
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Inactive
-                      </>
-                    )}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[250px]">Company</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead className="text-center">Employees</TableHead>
+                <TableHead className="text-right">Outstanding</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="w-[70px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredCompanies.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    {searchQuery ? "No companies found" : "No companies yet. Add your first company!"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredCompanies.map((company) => (
+                  <TableRow 
+                    key={company.id} 
+                    className="group cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleViewDetails(company.id)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{company.name}</p>
+                          <p className="text-xs text-muted-foreground">{company.code || "-"}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{company.contact_person || "-"}</p>
+                        {company.phone && (
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {company.phone}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{company.employee_count}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          company.outstanding > 0 ? "text-destructive" : "text-success"
+                        )}
+                      >
+                        {formatCurrency(company.outstanding)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={company.is_active ? "default" : "secondary"}
+                        className={cn(
+                          company.is_active
+                            ? "bg-success/10 text-success hover:bg-success/20"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {company.is_active ? (
+                          <>
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Active
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Inactive
+                          </>
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(company.id)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => setDeleteCompanyId(company.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteCompanyId} onOpenChange={() => setDeleteCompanyId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the company and all associated employees and transactions.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
