@@ -1,19 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useStorage } from "@/lib/storage/StorageContext";
+import {
+  localCompanies,
+  localEmployees,
+  localTransactions,
+  localCompanyPayments,
+  localEmployeePayments,
+} from "@/lib/storage/localStorage";
+import type { Company } from "@/lib/storage/types";
 
-export interface Company {
-  id: string;
-  name: string;
-  code: string | null;
-  address: string | null;
-  contact_person: string | null;
-  phone: string | null;
-  email: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type { Company } from "@/lib/storage/types";
 
 export interface CompanyWithStats extends Company {
   employee_count: number;
@@ -23,9 +21,15 @@ export interface CompanyWithStats extends Company {
 }
 
 export function useCompanies() {
+  const { mode } = useStorage();
+
   return useQuery({
-    queryKey: ["companies"],
+    queryKey: ["companies", mode],
     queryFn: async () => {
+      if (mode === "local") {
+        return localCompanies.getAll();
+      }
+
       const { data, error } = await supabase
         .from("companies")
         .select("*")
@@ -38,10 +42,42 @@ export function useCompanies() {
 }
 
 export function useCompaniesWithStats() {
+  const { mode } = useStorage();
+
   return useQuery({
-    queryKey: ["companies-with-stats"],
+    queryKey: ["companies-with-stats", mode],
     queryFn: async () => {
-      // Get companies
+      if (mode === "local") {
+        const companies = localCompanies.getAll();
+        const employees = localEmployees.getAll();
+        const transactions = localTransactions.getAll();
+        const companyPayments = localCompanyPayments.getAll();
+        const employeePayments = localEmployeePayments.getAll();
+
+        return companies.map((company) => {
+          const employeeCount = employees.filter((e) => e.company_id === company.id).length;
+          const totalPurchases = transactions
+            .filter((t) => t.company_id === company.id)
+            .reduce((sum, t) => sum + Number(t.total_amount), 0);
+          const totalCompanyPayments = companyPayments
+            .filter((p) => p.company_id === company.id)
+            .reduce((sum, p) => sum + Number(p.amount), 0);
+          const totalEmployeePayments = employeePayments
+            .filter((p) => p.company_id === company.id)
+            .reduce((sum, p) => sum + Number(p.amount), 0);
+          const totalPayments = totalCompanyPayments + totalEmployeePayments;
+
+          return {
+            ...company,
+            employee_count: employeeCount,
+            total_purchases: totalPurchases,
+            total_payments: totalPayments,
+            outstanding: totalPurchases - totalPayments,
+          };
+        }) as CompanyWithStats[];
+      }
+
+      // Cloud mode
       const { data: companies, error: companiesError } = await supabase
         .from("companies")
         .select("*")
@@ -49,35 +85,30 @@ export function useCompaniesWithStats() {
 
       if (companiesError) throw companiesError;
 
-      // Get employee counts
       const { data: employees, error: empError } = await supabase
         .from("employees")
         .select("company_id");
 
       if (empError) throw empError;
 
-      // Get transactions totals
       const { data: transactions, error: txnError } = await supabase
         .from("food_transactions")
         .select("company_id, total_amount");
 
       if (txnError) throw txnError;
 
-      // Get company payments
       const { data: companyPayments, error: cpError } = await supabase
         .from("company_payments")
         .select("company_id, amount");
 
       if (cpError) throw cpError;
 
-      // Get employee payments
       const { data: employeePayments, error: epError } = await supabase
         .from("employee_payments")
         .select("company_id, amount");
 
       if (epError) throw epError;
 
-      // Calculate stats per company
       const companiesWithStats: CompanyWithStats[] = companies.map((company) => {
         const employeeCount = employees.filter((e) => e.company_id === company.id).length;
         const totalPurchases = transactions
@@ -106,10 +137,16 @@ export function useCompaniesWithStats() {
 }
 
 export function useCompany(companyId: string | undefined) {
+  const { mode } = useStorage();
+
   return useQuery({
-    queryKey: ["company", companyId],
+    queryKey: ["company", companyId, mode],
     queryFn: async () => {
       if (!companyId) return null;
+
+      if (mode === "local") {
+        return localCompanies.getById(companyId);
+      }
 
       const { data, error } = await supabase
         .from("companies")
@@ -126,9 +163,14 @@ export function useCompany(companyId: string | undefined) {
 
 export function useCreateCompany() {
   const queryClient = useQueryClient();
+  const { mode } = useStorage();
 
   return useMutation({
     mutationFn: async (company: Omit<Company, "id" | "created_at" | "updated_at">) => {
+      if (mode === "local") {
+        return localCompanies.create(company);
+      }
+
       const { data, error } = await supabase
         .from("companies")
         .insert(company)
@@ -151,9 +193,16 @@ export function useCreateCompany() {
 
 export function useUpdateCompany() {
   const queryClient = useQueryClient();
+  const { mode } = useStorage();
 
   return useMutation({
     mutationFn: async ({ id, ...company }: Partial<Company> & { id: string }) => {
+      if (mode === "local") {
+        const result = localCompanies.update(id, company);
+        if (!result) throw new Error("Company not found");
+        return result;
+      }
+
       const { data, error } = await supabase
         .from("companies")
         .update(company)
@@ -177,9 +226,16 @@ export function useUpdateCompany() {
 
 export function useDeleteCompany() {
   const queryClient = useQueryClient();
+  const { mode } = useStorage();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (mode === "local") {
+        const result = localCompanies.delete(id);
+        if (!result) throw new Error("Company not found");
+        return;
+      }
+
       const { error } = await supabase.from("companies").delete().eq("id", id);
       if (error) throw error;
     },

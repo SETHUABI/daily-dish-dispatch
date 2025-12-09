@@ -1,20 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useStorage } from "@/lib/storage/StorageContext";
+import {
+  localTransactions,
+  localFoodItems,
+  localEmployees,
+  localCompanies,
+} from "@/lib/storage/localStorage";
+import type { FoodTransaction } from "@/lib/storage/types";
 
-export interface FoodTransaction {
-  id: string;
-  date: string;
-  company_id: string;
-  employee_id: string;
-  food_item_id: string;
-  quantity: number;
-  unit_price: number;
-  total_amount: number;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type { FoodTransaction } from "@/lib/storage/types";
 
 export interface TransactionWithDetails extends FoodTransaction {
   food_item_name: string;
@@ -23,9 +19,25 @@ export interface TransactionWithDetails extends FoodTransaction {
 }
 
 export function useTransactions(employeeId?: string, companyId?: string) {
+  const { mode } = useStorage();
+
   return useQuery({
-    queryKey: ["transactions", employeeId, companyId],
+    queryKey: ["transactions", employeeId, companyId, mode],
     queryFn: async () => {
+      if (mode === "local") {
+        const transactions = localTransactions.getAll(employeeId, companyId);
+        const foodItems = localFoodItems.getAll();
+        const employees = localEmployees.getAll();
+        const companies = localCompanies.getAll();
+
+        return transactions.map((t) => ({
+          ...t,
+          food_item_name: foodItems.find((f) => f.id === t.food_item_id)?.name || "",
+          employee_name: employees.find((e) => e.id === t.employee_id)?.name || "",
+          company_name: companies.find((c) => c.id === t.company_id)?.name || "",
+        })) as TransactionWithDetails[];
+      }
+
       let query = supabase
         .from("food_transactions")
         .select(`
@@ -59,11 +71,16 @@ export function useTransactions(employeeId?: string, companyId?: string) {
 
 export function useCreateTransaction() {
   const queryClient = useQueryClient();
+  const { mode } = useStorage();
 
   return useMutation({
     mutationFn: async (
       transactions: Omit<FoodTransaction, "id" | "created_at" | "updated_at">[]
     ) => {
+      if (mode === "local") {
+        return localTransactions.create(transactions);
+      }
+
       const { data, error } = await supabase
         .from("food_transactions")
         .insert(transactions)
@@ -87,9 +104,16 @@ export function useCreateTransaction() {
 
 export function useDeleteTransaction() {
   const queryClient = useQueryClient();
+  const { mode } = useStorage();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (mode === "local") {
+        const result = localTransactions.delete(id);
+        if (!result) throw new Error("Transaction not found");
+        return;
+      }
+
       const { error } = await supabase.from("food_transactions").delete().eq("id", id);
       if (error) throw error;
     },
